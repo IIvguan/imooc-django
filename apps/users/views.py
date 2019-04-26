@@ -16,8 +16,9 @@ from utils.mixin_utils import LoginRequiredMixin
 from operation.models import UserCourse, UserFavorite, UserMessage
 from organization.models import CourseOrg, Teacher
 from courses.models import Course
-
+from django_jwt_session_auth import JwtSession, jwt_login
 import json
+
 
 # Create your views here.
 
@@ -27,7 +28,7 @@ import json
 class CustomBackend(ModelBackend):
     def authenticate(self, username=None, password=None, **kwargs):
         try:
-            user = UserProfile.objects.get(Q(username = username) | Q(email=username))
+            user = UserProfile.objects.get(Q(username=username) | Q(email=username))
             if user.check_password(password):
                 return user
         except Exception as e:
@@ -65,10 +66,11 @@ class LoginView(View):
             password = request.POST.get('password', '')
             # 上面的 authenticate 方法 return user
             user = authenticate(username=user_name, password=password)
-
             if user is not None:
                 if user.is_active:
                     login(request, user)
+                    # token = jwt_login(UserProfile, request, expire=3600)
+                   # print(token)
                     return HttpResponsePermanentRedirect(reverse('index'))
                 return render(request, 'login.html', {'msg': '用户未激活！'})
             return render(request, 'login.html', {'msg': '用户名或者密码错误！'})
@@ -76,7 +78,7 @@ class LoginView(View):
         return render(request, 'login.html', {'form_errors': login_form.errors})
 
 
-#用户登出
+# 用户登出
 class LogoutView(View):
     def get(self, request):
         logout(request)
@@ -105,7 +107,7 @@ class RegisterView(View):
             user_profile.is_active = False
             user_profile.save()
 
-            #注册时发送一条消息
+            # 注册时发送一条消息
             user_message = UserMessage()
             user_message.user = user_profile.id
             user_message.message = '欢迎注册慕学在线网！'
@@ -216,7 +218,7 @@ class UploadImageView(LoginRequiredMixin, View):
         return HttpResponse(json.dumps(res), content_type='application/json')
 
 
-#用户修改密码
+# 用户修改密码
 # 用户在个人中心修改密码
 class UpdatePwdView(LoginRequiredMixin, View):
     def post(self, request):
@@ -282,24 +284,24 @@ class UpdateEmailView(LoginRequiredMixin, View):
 # 我的课程
 class MyCourseView(LoginRequiredMixin, View):
     def get(self, request):
-     user_courses = UserCourse.objects.filter(user=request.user)
-     return render(request, 'usercenter-mycourse.html', {
-         'user_courses': user_courses,
-     })
+        user_courses = UserCourse.objects.filter(user=request.user)
+        return render(request, 'usercenter-mycourse.html', {
+            'user_courses': user_courses,
+        })
 
 
 # 我收藏的课程机构
 class MyFavOrgView(LoginRequiredMixin, View):
     def get(self, request):
-     org_list = []
-     fav_orgs = UserFavorite.objects.filter(user=request.user, fav_type=2)
-     for fav_org in fav_orgs:
-         org_id = fav_org.fav_id
-         org = CourseOrg.objects.get(id=org_id)
-         org_list.append(org)
-     return render(request, 'usercenter-fav-org.html', {
-         'org_list': org_list,
-     })
+        org_list = []
+        fav_orgs = UserFavorite.objects.filter(user=request.user, fav_type=2)
+        for fav_org in fav_orgs:
+            org_id = fav_org.fav_id
+            org = CourseOrg.objects.get(id=org_id)
+            org_list.append(org)
+        return render(request, 'usercenter-fav-org.html', {
+            'org_list': org_list,
+        })
 
 
 # 我收藏的授课讲师
@@ -336,7 +338,7 @@ class MyMessageView(LoginRequiredMixin, View):
         # 如果 user = 0 ，代表全局消息，所有用户都能收到
         all_message = UserMessage.objects.filter(user=request.user.id)
 
-        #进入到我的消息页面后，把已读的消息清空
+        # 进入到我的消息页面后，把已读的消息清空
         all_unread_message = UserMessage.objects.filter(user=request.user.id, has_read=False)
         for unread_message in all_unread_message:
             unread_message.has_read = True

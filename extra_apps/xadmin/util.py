@@ -11,11 +11,12 @@ from django.utils.safestring import mark_safe
 from django.utils.text import capfirst
 from django.utils.encoding import force_text, smart_text, smart_str
 from django.utils.translation import ungettext
-from django.core.urlresolvers import reverse
+from django.urls.base import reverse
 from django.conf import settings
 from django.forms import Media
 from django.utils.translation import get_language
 from django.contrib.admin.utils import label_for_field, help_text_for_field
+from django import VERSION as version
 import datetime
 import decimal
 
@@ -78,15 +79,16 @@ def xstatic(*tags):
 
 
 def vendor(*tags):
-    media = Media()
+    css = {'screen': []}
+    js = []
     for tag in tags:
         file_type = tag.split('.')[-1]
         files = xstatic(tag)
         if file_type == 'js':
-            media.add_js(files)
+            js.extend(files)
         elif file_type == 'css':
-            media.add_css({'screen': files})
-    return media
+            css['screen'] += files
+    return Media(css=css, js=js)
 
 
 def lookup_needs_distinct(opts, lookup_path):
@@ -95,8 +97,8 @@ def lookup_needs_distinct(opts, lookup_path):
     """
     field_name = lookup_path.split('__', 1)[0]
     field = opts.get_field(field_name)
-    if ((hasattr(field, 'rel') and
-         isinstance(field.rel, models.ManyToManyRel)) or
+    if ((hasattr(field, 'remote_field') and
+         isinstance(field.remote_field, models.ManyToManyRel)) or
         (is_related_field(field) and
          not field.field.unique)):
         return True
@@ -175,6 +177,7 @@ def flatten_fieldsets(fieldsets):
 
 
 class NestedObjects(Collector):
+
     def __init__(self, *args, **kwargs):
         super(NestedObjects, self).__init__(*args, **kwargs)
         self.edges = {}  # {from_instance: [to_instances]}
@@ -263,12 +266,14 @@ def model_ngettext(obj, n=None):
     singular, plural = d["verbose_name"], d["verbose_name_plural"]
     return ungettext(singular, plural, n or 0)
 
-def is_rel_field(name,model):
-    if hasattr(name,'split') and name.find("__")>0:
+
+def is_rel_field(name, model):
+    if hasattr(name, 'split') and name.find("__") > 0:
         parts = name.split("__")
         if parts[0] in model._meta.get_all_field_names():
             return True
     return False
+
 
 def lookup_field(name, obj, model_admin=None):
     opts = obj._meta
@@ -284,16 +289,16 @@ def lookup_field(name, obj, model_admin=None):
                 model_admin is not None
                 and hasattr(model_admin, name)
                 and name not in ('__str__', '__unicode__')
-                ):
+        ):
             attr = getattr(model_admin, name)
             value = attr(obj)
         else:
-            if is_rel_field(name,obj):
+            if is_rel_field(name, obj):
                 parts = name.split("__")
-                rel_name,sub_rel_name = parts[0],"__".join(parts[1:])
-                rel_obj =  getattr(obj,rel_name)
+                rel_name, sub_rel_name = parts[0], "__".join(parts[1:])
+                rel_obj = getattr(obj, rel_name)
                 if rel_obj is not None:
-                    return lookup_field(sub_rel_name,rel_obj,model_admin)
+                    return lookup_field(sub_rel_name, rel_obj, model_admin)
             attr = getattr(obj, name)
             if callable(attr):
                 value = attr()
@@ -304,7 +309,6 @@ def lookup_field(name, obj, model_admin=None):
         attr = None
         value = getattr(obj, name)
     return f, attr, value
-
 
 
 def admin_urlname(value, arg):
@@ -335,7 +339,7 @@ def display_for_field(value, field):
         return formats.number_format(value, field.decimal_places)
     elif isinstance(field, models.FloatField):
         return formats.number_format(value)
-    elif isinstance(field.rel, models.ManyToManyRel):
+    elif isinstance(field.remote_field, models.ManyToManyRel):
         return ', '.join([smart_text(obj) for obj in value.all()])
     else:
         return smart_text(value)
@@ -361,11 +365,14 @@ def display_for_value(value, boolean=False):
 class NotRelationField(Exception):
     pass
 
+
 def get_model_from_relation(field):
-    if is_related_field(field):
+    if field.related_model:
+        return field.related_model
+    elif is_related_field(field):
         return field.model
-    elif getattr(field, 'rel'):  # or isinstance?
-        return field.rel.to
+    elif getattr(field, 'remote_field'):  # or isinstance?
+        return field.remote_field.to
     else:
         raise NotRelationField
 
@@ -440,8 +447,8 @@ def get_limit_choices_to_from_path(model, path):
     fields = get_fields_from_path(model, path)
     fields = remove_trailing_data_field(fields)
     limit_choices_to = (
-        fields and hasattr(fields[-1], 'rel') and
-        getattr(fields[-1].rel, 'limit_choices_to', None))
+        fields and hasattr(fields[-1], 'remote_field') and
+        getattr(fields[-1].remote_field, 'limit_choices_to', None))
     if not limit_choices_to:
         return models.Q()  # empty Q
     elif isinstance(limit_choices_to, models.Q):
@@ -449,12 +456,14 @@ def get_limit_choices_to_from_path(model, path):
     else:
         return models.Q(**limit_choices_to)  # convert dict to Q
 
+
 def sortkeypicker(keynames):
     negate = set()
     for i, k in enumerate(keynames):
         if k[:1] == '-':
             keynames[i] = k[1:]
             negate.add(k[1:])
+
     def getit(adict):
         composite = [adict[k] for k in keynames]
         for i, (k, v) in enumerate(zip(keynames, composite)):
@@ -463,8 +472,10 @@ def sortkeypicker(keynames):
         return composite
     return getit
 
+
 def is_related_field(field):
     return isinstance(field, ForeignObjectRel)
 
+
 def is_related_field2(field):
-    return (hasattr(field, 'rel') and field.rel!=None) or is_related_field(field)
+    return (hasattr(field, 'remote_field') and field.remote_field != None) or is_related_field(field)

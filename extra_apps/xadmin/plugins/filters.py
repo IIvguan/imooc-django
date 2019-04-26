@@ -1,19 +1,21 @@
 import operator
-# from future.utils import iteritems
+from future.utils import iteritems
 from xadmin import widgets
 from xadmin.plugins.utils import get_context_dict
 
-from xadmin.util import get_fields_from_path, lookup_needs_distinct
+from django.contrib.admin.utils import get_fields_from_path, lookup_needs_distinct
 from django.core.exceptions import SuspiciousOperation, ImproperlyConfigured, ValidationError
 from django.db import models
 from django.db.models.fields import FieldDoesNotExist
-from django.db.models.sql.query import LOOKUP_SEP, QUERY_TERMS
+from django.db.models.constants import LOOKUP_SEP
+# from django.db.models.sql.constants import QUERY_TERMS
 from django.template import loader
 from django.utils import six
 from django.utils.encoding import smart_str
 from django.utils.translation import ugettext as _
 
-from xadmin.filters import manager as filter_manager, FILTER_PREFIX, SEARCH_VAR, DateFieldListFilter, RelatedFieldSearchFilter
+from xadmin.filters import manager as filter_manager, FILTER_PREFIX, SEARCH_VAR, DateFieldListFilter, \
+    RelatedFieldSearchFilter
 from xadmin.sites import site
 from xadmin.views import BaseAdminPlugin, ListAdminView
 from xadmin.util import is_related_field
@@ -43,8 +45,8 @@ class FilterPlugin(BaseAdminPlugin):
 
         # Last term in lookup is a query term (__exact, __startswith etc)
         # This term can be ignored.
-        if len(parts) > 1 and parts[-1] in QUERY_TERMS:
-            parts.pop()
+        # if len(parts) > 1 and parts[-1] in QUERY_TERMS:
+        #     parts.pop()
 
         # Special case -- foo__id__exact and foo__id queries are implied
         # if foo has been specificially included in the lookup list; so
@@ -58,9 +60,9 @@ class FilterPlugin(BaseAdminPlugin):
                 # Lookups on non-existants fields are ok, since they're ignored
                 # later.
                 return True
-            if hasattr(field, 'rel'):
-                model = field.rel.to
-                rel_name = field.rel.get_related_field().name
+            if hasattr(field, 'remote_field'):
+                model = field.remote_field.to
+                rel_name = field.remote_field.get_related_field().name
             elif is_related_field(field):
                 model = field.model
                 rel_name = model._meta.pk.name
@@ -77,15 +79,15 @@ class FilterPlugin(BaseAdminPlugin):
     def get_list_queryset(self, queryset):
         lookup_params = dict([(smart_str(k)[len(FILTER_PREFIX):], v) for k, v in self.admin_view.params.items()
                               if smart_str(k).startswith(FILTER_PREFIX) and v != ''])
-        for p_key, p_val in lookup_params.items():
+        for p_key, p_val in iteritems(lookup_params):
             if p_val == "False":
                 lookup_params[p_key] = False
         use_distinct = False
 
         # for clean filters
         self.admin_view.has_query_param = bool(lookup_params)
-        self.admin_view.clean_query_url = self.admin_view.get_query_string(remove=
-                                                                           [k for k in self.request.GET.keys() if k.startswith(FILTER_PREFIX)])
+        self.admin_view.clean_query_url = self.admin_view.get_query_string(remove=[k for k in self.request.GET.keys() if
+                                                                                   k.startswith(FILTER_PREFIX)])
 
         # Normalize the types of keys
         if not self.free_query_filter:
@@ -121,9 +123,9 @@ class FilterPlugin(BaseAdminPlugin):
                         field, self.request, lookup_params,
                         self.model, self.admin_view, field_path=field_path)
 
-                    if len(field_parts)>1:
+                    if len(field_parts) > 1:
                         # Add related model name to title
-                        spec.title = "%s %s"%(field_parts[-2].name,spec.title)
+                        spec.title = "%s %s" % (field_parts[-2].name, spec.title)
 
                     # Check if we need to use distinct()
                     use_distinct = (use_distinct or
@@ -154,11 +156,23 @@ class FilterPlugin(BaseAdminPlugin):
             raise IncorrectLookupParameters(e)
 
         try:
-            queryset = queryset.filter(**lookup_params)
+            # fix a bug by david: In demo, quick filter by IDC Name() cannot be used.
+            if isinstance(queryset, models.query.QuerySet) and lookup_params:
+                new_lookup_parames = dict()
+                for k, v in lookup_params.items():
+                    list_v = v.split(',')
+                    if len(list_v) > 0:
+                        new_lookup_parames.update({k: list_v})
+                    else:
+                        new_lookup_parames.update({k: v})
+                queryset = queryset.filter(**new_lookup_parames)
         except (SuspiciousOperation, ImproperlyConfigured):
             raise
         except Exception as e:
             raise IncorrectLookupParameters(e)
+        else:
+            if not isinstance(queryset, models.query.QuerySet):
+                pass
 
         query = self.request.GET.get(SEARCH_VAR, '')
 
@@ -227,5 +241,6 @@ class FilterPlugin(BaseAdminPlugin):
                     'xadmin/blocks/model_list.nav_form.search_form.html',
                     context=context)
             )
+
 
 site.register_plugin(FilterPlugin, ListAdminView)

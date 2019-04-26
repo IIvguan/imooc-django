@@ -1,4 +1,4 @@
-#coding:utf-8
+# coding:utf-8
 from itertools import chain
 
 import xadmin
@@ -37,7 +37,7 @@ class SelectMultipleTransfer(forms.SelectMultiple):
             attrs['class'] += 'stacked'
         if value is None:
             value = []
-        final_attrs = self.build_attrs(attrs, name=name)
+        final_attrs = self.build_attrs(attrs, extra_attrs={'name': name})
 
         selected_choices = set(force_text(v) for v in value)
         available_output = []
@@ -94,7 +94,7 @@ class M2MSelectPlugin(BaseAdminPlugin):
             (
                 'm2m_transfer' in self.admin_view.style_fields.values() or
                 'm2m_dropdown' in self.admin_view.style_fields.values()
-            )
+        )
 
     def get_field_style(self, attrs, db_field, style, **kwargs):
         if style == 'm2m_transfer' and isinstance(db_field, ManyToManyField):

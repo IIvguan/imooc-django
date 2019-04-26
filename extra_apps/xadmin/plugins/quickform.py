@@ -44,6 +44,7 @@ class RelatedFieldWidgetWrapper(forms.Widget):
     This class is a wrapper to a given widget to add the add icon for the
     admin interface.
     """
+
     def __init__(self, widget, rel, add_url, rel_add_url):
         self.needs_multipart_form = widget.needs_multipart_form
         self.attrs = widget.attrs
@@ -70,16 +71,16 @@ class RelatedFieldWidgetWrapper(forms.Widget):
         media = self.widget.media + vendor('xadmin.plugin.quick-form.js')
         return media
 
-    def render(self, name, value, *args, **kwargs):
+    def render(self, name, value, renderer=None, *args, **kwargs):
         self.widget.choices = self.choices
         output = []
         if self.add_url:
             output.append(u'<a href="%s" title="%s" class="btn btn-primary btn-sm btn-ajax pull-right" data-for-id="id_%s" data-refresh-url="%s"><i class="fa fa-plus"></i></a>'
                           % (
-                              self.add_url, (_('Create New %s') % self.rel.to._meta.verbose_name), name,
+                              self.add_url, (_('Create New %s') % self.rel.model._meta.verbose_name), name,
                               "%s?_field=%s&%s=" % (self.rel_add_url, name, name)))
         output.extend(['<div class="control-wrap" id="id_%s_wrap_container">' % name,
-                  self.widget.render(name, value, *args, **kwargs), '</div>'])
+                       self.widget.render(name, value, *args, **kwargs), '</div>'])
         return mark_safe(u''.join(output))
 
     def build_attrs(self, extra_attrs=None, **kwargs):
@@ -102,7 +103,7 @@ class QuickAddBtnPlugin(BaseAdminPlugin):
             if rel_model in self.admin_site._registry and self.has_model_perm(rel_model, 'add'):
                 add_url = self.get_model_url(rel_model, 'add')
                 formfield.widget = RelatedFieldWidgetWrapper(
-                    formfield.widget, db_field.rel, add_url, self.get_model_url(self.model, 'add'))
+                    formfield.widget, db_field.remote_field, add_url, self.get_model_url(self.model, 'add'))
         return formfield
 
 site.register_plugin(QuickFormPlugin, ModelFormAdminView)

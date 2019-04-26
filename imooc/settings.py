@@ -14,9 +14,6 @@ import os
 import sys
 
 # mysql 数据库
-import pymysql
-
-pymysql.install_as_MySQLdb()
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -56,6 +53,7 @@ INSTALLED_APPS = [
     'crispy_forms',
     'captcha',
     'pure_pagination',
+    'DjangoUeditor',
 ]
 
 # UserProfile 覆盖了 django 内置的 user 表
@@ -69,6 +67,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    #   'django_jwt_session_auth.JwtAuthMiddleware',
 ]
 
 ROOT_URLCONF = 'imooc.urls'
@@ -103,9 +102,8 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'imooc',
         'USER': 'root',
-        'PASSWORD': 'root',
-        'HOST': 'mysql',
-        'PORT': '3306',
+        'PASSWORD': 'yuli19960711',
+        'HOST': '127.0.0.1',
     }
 }
 
@@ -151,10 +149,16 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # 把这些文件放到一起是为了用 apache/nginx 等部署的时候更方便
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
-
 EMAIL_HOST = 'smtp.qq.com'
 EMAIL_PORT = 25
 EMAIL_HOST_USER = '10581290@qq.com'
 EMAIL_HOST_PASSWORD = 'scdxhwjinajgbjjc'
 EMAIL_USE_TLS = True
 EMAIL_FROM = '10581290@qq.com'
+
+# JWT_AUTH = {
+#     'PAYLOAD_TO_USER': 'user.auth.payload_to_user',
+#     'USER_TO_PAYLOAD': 'user.auth.user_to_payload',
+# }
+#
+# SECRET_KEY='timothy123456789'
